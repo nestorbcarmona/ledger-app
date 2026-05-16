@@ -1,12 +1,12 @@
-# Ledger App
+# 📒 Ledger App
 
 A small **double-entry ledger** HTTP API: create accounts, post balanced transactions, and look balances up. Data lives in memory (no database in this repo), but you can turn on **Redis** for account caching and a **BullMQ** queue that runs after each successful post—handy when you want to see how a “real” payments-ish service is shaped without wiring up Postgres on day one.
 
-You also get **API keys** on the ledger routes, configurable **HTTP rate limits** (per API key or IP), **Pino** logs, **Prometheus** metrics, optional **OpenTelemetry** traces, and a **health** endpoint.
+You also get 🔑 **API keys** on the ledger routes, configurable **HTTP rate limits** (per API key or IP), 📝 **Pino** logs, 📈 **Prometheus** metrics, optional 🔭 **OpenTelemetry** traces, and ❤️ **health** checks.
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 Think of it as one NestJS app with a straight-line request path. `[src/main.ts](src/main.ts)` loads env (including optional `.env`), may start OpenTelemetry if `OTEL_EXPORTER_OTLP_ENDPOINT` is set, then boots `[AppModule](src/app.module.ts)` with Pino and a strict validation pipe.
 
@@ -14,23 +14,23 @@ Incoming HTTP hits **metrics middleware** first, then a **global rate limit** (`
 
 All balances and posted transactions sit in in-memory repositories from `[LedgerStorageModule](src/ledger/ledger-storage.module.ts)`. `[TransactionsService](src/transactions/transactions.service.ts)` wraps each commit in an `[AsyncMutex](src/ledger/async-mutex.ts)` so two commits don’t interleave inside the same process. If you set `REDIS_URL`, account reads can go through a Keyv cache, and after a successful commit a BullMQ job (handled by `[TransactionPostedProcessor](src/queue/transaction-posted.processor.ts)`) logs and clears cached account rows.
 
-### AsyncMutex and production-ready ledgers
+### ⚠️ AsyncMutex and production-ready ledgers
 
 Commits are serialized with an in-process `[AsyncMutex](src/ledger/async-mutex.ts)`. That’s a reasonable choice for **one Node process**—it keeps the in-memory math from racing with itself—but it’s not the whole story for a bank-grade system.
 
 **Why that matters**
 
-- **More than one instance** — A mutex doesn’t span processes. Two replicas behind a load balancer can still stomp the same logical accounts unless something else (usually the database) serializes conflicting updates.
-- **Crashes** — Lock state is memory. If the process dies mid-flight, the lock evaporates. Here the data is in-memory too, so you’re already not “durable”; the mutex doesn’t change that.
-- **Heavy contention** — Lots of requests waiting on one lock means more queued promises, more heap churn, and more pressure on the event loop than you’d typically accept in a high-throughput ledger.
+- 🖥️ **More than one instance** — A mutex doesn’t span processes. Two replicas behind a load balancer can still stomp the same logical accounts unless something else (usually the database) serializes conflicting updates.
+- 💥 **Crashes** — Lock state is memory. If the process dies mid-flight, the lock evaporates. Here the data is in-memory too, so you’re already not “durable”; the mutex doesn’t change that.
+- 📊 **Heavy contention** — Lots of requests waiting on one lock means more queued promises, more heap churn, and more pressure on the event loop than you’d typically accept in a high-throughput ledger.
 
 **What people tend to ship instead**
 
-- **Real ACID transactions** (Postgres is the usual answer) so every instance talks to one authoritative store.
-- **Distributed locks** (Redis patterns like Redlock) when you truly need an app-level critical section across machines.
-- **Durable idempotency** — This API already honors `Idempotency-Key` on `POST /transactions`, but the store is in-memory. In production you’d persist keys and responses so retries are safe across restarts.
+- 🗄️ **Real ACID transactions** (Postgres is the usual answer) so every instance talks to one authoritative store.
+- 🔗 **Distributed locks** (Redis patterns like Redlock) when you truly need an app-level critical section across machines.
+- 🔁 **Durable idempotency** — This API already honors `Idempotency-Key` on `POST /transactions`, but the store is in-memory. In production you’d persist keys and responses so retries are safe across restarts.
 
-### Request path and optional infrastructure
+### 🔀 Request path and optional infrastructure
 
 ```mermaid
 flowchart TB
@@ -107,7 +107,7 @@ flowchart TB
 
 Default window length and limit are `[DEFAULT_THROTTLE_TTL_MS` / `DEFAULT_THROTTLE_LIMIT](src/rate-limit/throttle-defaults.ts)` (mapped to env `THROTTLE_TTL_MS` / `THROTTLE_LIMIT`). The guard tracks by **API key** when headers include one, otherwise by **client IP**. `[@SkipThrottle()](https://docs.nestjs.com/security/rate-limiting)` applies to `/health` and `/metrics` so scrapers rarely see **429**.
 
-### Nest module graph
+### 📦 Nest module graph
 
 ```mermaid
 flowchart TB
@@ -132,13 +132,13 @@ flowchart TB
 
 ---
 
-## Prerequisites
+## ✅ Prerequisites
 
 You’ll want **Node 20+** and **npm** (the repo ships a lockfile).
 
 ---
 
-## Quick start
+## 🚀 Quick start
 
 ```bash
 npm install
@@ -148,7 +148,7 @@ npm run start:dev
 
 By default the app listens on **port 3000**; override with `PORT` if you need something else.
 
-### Example requests
+### 📋 Example requests
 
 Below: create two accounts, then post a transaction that debits one and credits the other. Every **ledger** call needs an API key—either `X-API-Key` or `Authorization: Bearer <key>`.
 
@@ -184,7 +184,7 @@ curl -sS "$BASE/accounts/<DEBIT_ACCOUNT_ID>" -H "X-API-Key: $API_KEY"
 
 ---
 
-## Environment variables
+## ⚙️ Environment variables
 
 For a ready-made starting point, copy `[.env.example](.env.example)` to `.env` in the project root and tweak values there. `main.ts` pulls in `dotenv/config`, so a `.env` file “just works” when you run the app locally.
 
@@ -201,17 +201,17 @@ For a ready-made starting point, copy `[.env.example](.env.example)` to `.env` i
 | `THROTTLE_LIMIT`              | Max requests allowed inside each `THROTTLE_TTL_MS` window (default **120**)                                                                     |
 
 
-## Rate limiting 
+## 🛡️ Rate limiting
 
 `[@nestjs/throttler](https://github.com/nestjs/throttler)` runs globally **before** the API key guard. `/health` and `/metrics` are excluded (`@SkipThrottle`) so probes and Prometheus scrapes do not get **429**s in normal setups. Ledger routes count toward the limit. Storage is **in-memory per process** (multiple replicas each keep their own counters); tighten limits at the gateway or add Redis-backed throttling if you need a shared budget across nodes.
 
 ---
 
-## Redis, cache, and queue (optional)
+## 📮 Redis, cache, and queue (optional)
 
 Redis is **not** required. When it’s off, you still run the same code paths—the cache falls back to in-memory and the “queue” becomes a no-op publisher, which is nice for tests and quick demos.
 
-When you *do* want Redis:
+🐳 When you *do* want Redis:
 
 ```bash
 docker compose up -d redis
@@ -231,23 +231,26 @@ npm run start:dev
 | After a commit        | No-op “publisher”              | BullMQ worker (logging + cache deletes) |
 | Several app instances | Each process has its own cache | One shared cache + queue                |
 
+
 ---
 
-## Observability
+## 📊 Observability
 
-**Logs** — JSON via `nestjs-pino` (pretty in non-production). Responses echo `x-request-id` (reuse the incoming header if the client sent one; otherwise the app generates one). Deliberately, `Authorization` is not part of the serialized request object in logs.
+📝 **Logs** — JSON via `nestjs-pino` (pretty in non-production). Responses echo `x-request-id` (reuse the incoming header if the client sent one; otherwise the app generates one). Deliberately, `Authorization` is not part of the serialized request object in logs.
 
-**Metrics** — `GET /metrics` serves Prometheus text. It’s intentionally public in this demo; lock it down in anything real. HTTP metrics come from middleware, so **401**s from the guard still show up. Path UUIDs are normalized to `:id` in the `route` label to keep cardinality sane. Ledger-specific counters include `ledger_transactions_attempted_total` (after idempotency, one per try) and `ledger_transactions_committed_total` (successful commits only).
+📈 **Metrics** — `GET /metrics` serves Prometheus text. It’s intentionally public in this demo; lock it down in anything real. HTTP metrics come from middleware, so **401**s from the guard still show up. Path UUIDs are normalized to `:id` in the `route` label to keep cardinality sane. Ledger-specific counters include `ledger_transactions_attempted_total` (after idempotency, one per try) and `ledger_transactions_committed_total` (successful commits only).
 
 Sample `GET /metrics` output after creating accounts and posting a transaction (ledger counters, `http_request_duration_seconds` buckets, `http_requests_total`, `account_operations_total`):
 
-![Example Prometheus scrape from `/metrics`](docs/assets/prometheus-metrics-sample.png)
+Example Prometheus scrape from 
 
-**Health** — `GET /health` optionally pings Redis when `REDIS_URL` is configured.
+/metrics
 
-**Tracing** — If `OTEL_EXPORTER_OTLP_ENDPOINT` is set, `main.ts` wires up the OpenTelemetry Node SDK with the OTLP HTTP trace exporter (`{endpoint}/v1/traces`) and common auto-instrumentation. Application code can add spans with `@opentelemetry/api` (for example around transaction commits).
+❤️ **Health** — `GET /health` optionally pings Redis when `REDIS_URL` is configured.
 
-### Prometheus: latency (P50 / P95 / P99) and status codes
+🔭 **Tracing** — If `OTEL_EXPORTER_OTLP_ENDPOINT` is set, `main.ts` wires up the OpenTelemetry Node SDK with the OTLP HTTP trace exporter (`{endpoint}/v1/traces`) and common auto-instrumentation. Application code can add spans with `@opentelemetry/api` (for example around transaction commits).
+
+### 📡 Prometheus: latency (P50 / P95 / P99) and status codes
 
 You’ll see a histogram `http_request_duration_seconds` and a counter `http_requests_total`, both labeled with `method`, `route`, and `status`. Percentiles aren’t separate time series—you derive them with `histogram_quantile` in PromQL.
 
@@ -271,9 +274,9 @@ HTTP status rates:
 sum(rate(http_requests_total[5m])) by (status)
 ```
 
-Quick sanity check: `curl -sS localhost:3000/metrics | grep http_`
+🔍 Quick sanity check: `curl -sS localhost:3000/metrics | grep http_`
 
-### Viewing traces in Jaeger
+### 🔎 Viewing traces in Jaeger
 
 1. Start Jaeger (OTLP HTTP on **4318**, UI on **16686**):
   ```bash
@@ -287,31 +290,29 @@ Quick sanity check: `curl -sS localhost:3000/metrics | grep http_`
    npm run start:dev
   ```
 3. Hit the API with the curl examples above, then open [http://localhost:16686](http://localhost:16686).
-4. In Jaeger, pick service **`ledger-app`** (or whatever you set in `OTEL_SERVICE_NAME`), hit **Find Traces**, and open a trace to see the waterfall.
+4. In Jaeger, pick service `**ledger-app**` (or whatever you set in `OTEL_SERVICE_NAME`), hit **Find Traces**, and open a trace to see the waterfall.
 
 Example trace for `POST /transactions` showing nested `ledger.apply_transaction`:
 
-![Jaeger UI: POST /transactions with nested ledger span](docs/assets/jaeger-trace-transaction.png)
+Jaeger UI: POST /transactions with nested ledger span
 
 If nothing shows up, double-check the env var is set in the **same** shell as `npm run start:dev`, that Jaeger is up (`docker compose ps`), and that you’ve made at least one request after the app booted.
 
 ---
 
-## API behavior (summary)
+## 📋 API behavior (summary)
 
-`**POST /accounts`** — Create an account. You can pass an optional `id` (UUID), `name`, and `balance` (defaults to 0). `direction` is required (`debit` or `credit`). **201** with the created account.
+- `**POST /accounts`** — Create an account. You can pass an optional `id` (UUID), `name`, and `balance` (defaults to 0). `direction` is required (`debit` or `credit`). **201** with the created account.
+- `**GET /accounts/:id`** — Fetch one account. **200** if it exists, **404** if not.
+- `**POST /transactions`** — Post a balanced set of `entries` (`direction`, `account_id`, `amount`). Debits must equal credits. Unknown account id → **404**; bad input → **400**; success → **201**.
+- `**Idempotency-Key`** — Send the same header on retries and you’ll get the same successful body back while the key is remembered (about **30 minutes**, in-memory).
 
-`**GET /accounts/:id`** — Fetch one account. **200** if it exists, **404** if not.
-
-`**POST /transactions`** — Post a balanced set of `entries` (`direction`, `account_id`, `amount`). Debits must equal credits. Unknown account id → **404**; bad input → **400**; success → **201**.
-
-`**Idempotency-Key`** — Send the same header on retries and you’ll get the same successful body back while the key is remembered (about **30 minutes**, in-memory).
-
-**Balance math** — For each entry, the account balance moves by the entry amount when the entry direction matches the account’s natural direction, and in the opposite direction otherwise (classic double-entry bookkeeping on a single line item).
+⚖️ **Balance math** — For each entry, the account balance moves by the entry amount when the entry direction matches the account’s natural direction, and in the opposite direction otherwise (classic double-entry bookkeeping on a single line item).
 
 ---
 
-## Scripts
+## 🧰 Scripts
+
 
 | Command               | Description                                                        |
 | --------------------- | ------------------------------------------------------------------ |
@@ -322,14 +323,20 @@ If nothing shows up, double-check the env var is set in the **same** shell as `n
 | `npm test`            | Jest—`*.spec.ts` files under `[src/](src/)` (see Spec tests below) |
 | `npm run lint`        | ESLint                                                             |
 
+
 ---
 
-## Spec tests
+## 🧪 Spec tests
 
-Unit tests live next to source as `***.spec.ts`**. Jest is configured with `rootDir: src` and matches `*.spec.ts` (`package.json`).
+Unit tests live next to source as `***.spec.ts`**. Jest is configured with `rootDir: src` and matches `*.spec.ts` (`package.json`). Use `**npm run test:watch**` for watch mode and `**npm run test:cov**` for coverage.
+
 
 | Spec file                                                                                        | What it covers                                                         |
 | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `[src/ledger/ledger.math.spec.ts](src/ledger/ledger.math.spec.ts)`                               | Balance / double-entry math helpers                                    |
 | `[src/transactions/transactions.service.spec.ts](src/transactions/transactions.service.spec.ts)` | Transaction commits against in-memory repos and the mutex              |
 | `[src/auth/extract-api-key.spec.ts](src/auth/extract-api-key.spec.ts)`                           | `X-API-Key` and `Bearer` parsing (shared by auth + rate-limit tracker) |
+
+
+---
+
