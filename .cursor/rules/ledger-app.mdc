@@ -1,0 +1,33 @@
+---
+description: Ledger App Nest conventions, ledger invariants, and agent workflow
+alwaysApply: true
+---
+
+# Ledger App (NestJS)
+
+## Project shape
+
+- Double-entry ledger **API** with **in-memory** persistence (`InMemoryAccountRepository`, `InMemoryTransactionRepository` via `LedgerStorageModule`).
+- **Transactions** must go through `TransactionsService` and the **mutex** (`AsyncMutex`); do not bypass it for balance updates.
+- **Optional Redis**: when `REDIS_URL` is set, account reads use cache + BullMQ publishes `transaction-posted`; without it, noop publisher and in-memory cache only.
+
+## Where to change things
+
+- HTTP / DTOs / validation: feature controllers and `*.dto.ts` under `src/accounts`, `src/transactions`.
+- Balance rules and entry math: `src/ledger/ledger.math.ts` and types in `src/ledger/`.
+- Auth bypass for public routes: `@Public()` in `src/common/public.decorator.ts` (used by health and metrics).
+- Prometheus / HTTP timing: `src/observability/ledger-metrics.module.ts` and related files.
+
+## Commands agents should prefer
+
+- Verify behavior: `npm test`
+- Typecheck/build: `npm run build`
+- Lint: `npm run lint` (note `--fix`)
+
+## Docs
+
+- Human and operator details: [README.md](README.md)
+- Env template: [.env.example](.env.example)
+- Long-form agent context: [AGENTS.md](AGENTS.md)
+
+Keep changes scoped; match existing Nest patterns and naming in the touched folder.
