@@ -2,6 +2,7 @@
   "name": "ledger-app",
   "version": "0.1.0",
   "private": true,
+  "description": "NestJS double-entry ledger API—in-memory accounts/transactions, optional Redis cache & BullMQ, API keys, rate limits, Pino, Prometheus, OpenTelemetry.",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",

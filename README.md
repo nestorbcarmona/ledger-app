@@ -105,6 +105,8 @@ flowchart TB
   processor -->|"del_account_cache_keys"| cache
 ```
 
+
+
 Default window length and limit are `[DEFAULT_THROTTLE_TTL_MS` / `DEFAULT_THROTTLE_LIMIT](src/rate-limit/throttle-defaults.ts)` (mapped to env `THROTTLE_TTL_MS` / `THROTTLE_LIMIT`). The guard tracks by **API key** when headers include one, otherwise by **client IP**. `[@SkipThrottle()](https://docs.nestjs.com/security/rate-limiting)` applies to `/health` and `/metrics` so scrapers rarely see **429**.
 
 ### 📦 Nest module graph
@@ -127,6 +129,8 @@ flowchart TB
   txMod --> accMod
   txMod --> queueMod[LedgerQueueModule_dynamic]
 ```
+
+
 
 `[ThrottlerModule](src/app.module.ts)` reads `**THROTTLE_TTL_MS**` (length of each sliding window slot in milliseconds) and `**THROTTLE_LIMIT**` (max requests per tracker per slot); the built-in defaults are defined in `[throttle-defaults.ts](src/rate-limit/throttle-defaults.ts)`.
 
@@ -222,7 +226,7 @@ npm run start:dev
 
 **What changes in practice?** Account reads can come from a read-through cache instead of hitting the repository every time. After a transaction commits, a small BullMQ job carries `{ transactionId, accountIds }` so you can log, invalidate cache keys, or grow toward webhooks and audits without bloating the HTTP handler.
 
-**Why bother for a toy ledger?** Payment and ledger-ish systems often look like this: Redis for hot reads and lightweight work queues, HTTP handlers that return fast, and workers that pick up the slack. This repo lets you flip that on with a single env var.
+**Why bother for a toy ledger?** Payment and ledger systems often look like this: Redis for hot reads and lightweight work queues, HTTP handlers that return fast, and workers that pick up the slack. This repo lets you flip that on with a single env var.
 
 
 |                       | Without `REDIS_URL`            | With `REDIS_URL`                        |
@@ -242,9 +246,7 @@ npm run start:dev
 
 Sample `GET /metrics` output after creating accounts and posting a transaction (ledger counters, `http_request_duration_seconds` buckets, `http_requests_total`, `account_operations_total`):
 
-Example Prometheus scrape from 
-
-/metrics
+![Example Prometheus scrape from /metrics](docs/assets/prometheus-metrics-sample.png)
 
 ❤️ **Health** — `GET /health` optionally pings Redis when `REDIS_URL` is configured.
 
@@ -290,11 +292,11 @@ sum(rate(http_requests_total[5m])) by (status)
    npm run start:dev
   ```
 3. Hit the API with the curl examples above, then open [http://localhost:16686](http://localhost:16686).
-4. In Jaeger, pick service `**ledger-app**` (or whatever you set in `OTEL_SERVICE_NAME`), hit **Find Traces**, and open a trace to see the waterfall.
+4. In Jaeger, pick service `**ledger-app**` (or user defined value in `OTEL_SERVICE_NAME`), hit **Find Traces**, and open a trace to see the waterfall.
 
 Example trace for `POST /transactions` showing nested `ledger.apply_transaction`:
 
-Jaeger UI: POST /transactions with nested ledger span
+![Jaeger UI: POST /transactions with nested ledger span](docs/assets/jaeger-trace-transaction.png)
 
 If nothing shows up, double-check the env var is set in the **same** shell as `npm run start:dev`, that Jaeger is up (`docker compose ps`), and that you’ve made at least one request after the app booted.
 
@@ -328,7 +330,7 @@ If nothing shows up, double-check the env var is set in the **same** shell as `n
 
 ## 🧪 Spec tests
 
-Unit tests live next to source as `***.spec.ts`**. Jest is configured with `rootDir: src` and matches `*.spec.ts` (`package.json`). Use `**npm run test:watch**` for watch mode and `**npm run test:cov**` for coverage.
+Unit tests live next to source as `***.spec.ts`**. Jest is configured with `rootDir: src` and matches `*.spec.ts` (`package.json`). Use `**npm run test:watch`** for watch mode and `**npm run test:cov**` for coverage.
 
 
 | Spec file                                                                                        | What it covers                                                         |
